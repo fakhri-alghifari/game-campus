@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Match 3D - Game Pencocokan Kampus</title>
+    <!-- Tailwind CSS untuk Desain Cepat -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js untuk Background 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-between overflow-x-hidden relative font-sans">
+
+    <!-- Canvas Three.js Background 3D -->
+    <div id="canvas-container" class="absolute inset-0 z-0 pointer-events-none opacity-40"></div>
+
+    <!-- Header / Navigasi Kampus -->
+    <header class="z-10 w-full max-w-4xl p-4 flex justify-between items-center bg-slate-800/80 backdrop-blur-md border-b border-slate-700 shadow-lg rounded-b-2xl">
+        <div class="flex items-center space-x-3">
+            <span class="text-3xl">🎓</span>
+            <div>
+                <h1 class="font-bold text-xl text-indigo-400">Campus Match 3D</h1>
+                <p class="text-xs text-slate-400">Edisi Anak Kuliahan</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4 text-sm">
+            <div class="bg-slate-700/60 px-3 py-1 rounded-full border border-slate-600">
+                ⏱️ Waktu: <span id="timer" class="font-bold text-yellow-400">00:00</span>
+            </div>
+            <div class="bg-slate-700/60 px-3 py-1 rounded-full border border-slate-600">
+                🎯 Langkah: <span id="moves" class="font-bold text-cyan-400">0</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Konten Utama Game -->
+    <main class="z-10 flex flex-col items-center justify-center flex-grow w-full max-w-4xl p-4 my-4">
+        
+        <!-- Pilihan Kesulitan -->
+        <div id="menu-screen" class="flex flex-col items-center bg-slate-800/90 p-8 rounded-3xl border border-slate-700 shadow-2xl backdrop-blur-md max-w-md w-full text-center">
+            <h2 class="text-2xl font-bold mb-2 text-indigo-300">Pilih Tingkat Kuliah</h2>
+            <p class="text-sm text-slate-400 mb-6">Cocokkan kartu karakter dan item kampus sebelum waktu habis!</p>
+            
+            <div class="flex flex-col space-y-3 w-full">
+                <button onclick="startGame(8)" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-6 rounded-xl transition shadow-lg">Level 1: Mahasiswa Baru (8 Kartu)</button>
+                <button onclick="startGame(12)" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold py-3 px-6 rounded-xl transition shadow-lg">Level 2: Mahasiswa Tingkat Akhir (12 Kartu)</button>
+                <button onclick="startGame(16)" class="bg-pink-600 hover:bg-pink-500 text-white font-semibold py-3 px-6 rounded-xl transition shadow-lg">Level 3: Pejuang Skripsi (16 Kartu)</button>
+            </div>
+        </div>
+
+        <!-- Grid Kartu Game -->
+        <div id="game-grid" class="grid gap-4 w-full max-w-2xl hidden">
+            <!-- Kartu akan di-generate otomatis via JavaScript -->
+        </div>
+
+    </main>
+
+    <!-- Modal Kelulusan (Menang) -->
+    <div id="win-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-800 border border-slate-700 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl relative">
+            <div class="text-6{-xl mb-4">🏆</div>
+            <h2 class="text-3xl font-bold text-yellow-400 mb-2">SELAMAT KELULUSAN!</h2>
+            <p class="text-slate-300 mb-4">Kamu berhasil menyelesaikan tantangan kampus ini!</p>
+            
+            <div class="bg-slate-900/60 p-4 rounded-xl mb-6 text-sm space-y-2 border border-slate-700">
+                <div class="flex justify-between"><span>Total Langkah:</span> <span id="final-moves" class="font-bold text-cyan-400">0</span></div>
+                <div class="flex justify-between"><span>Waktu Selesai:</span> <span id="final-time" class="font-bold text-yellow-400">00:00</span></div>
+                <div class="flex justify-between"><span>Skor Akhir:</span> <span id="final-score" class="font-bold text-green-400">0</span></div>
+            </div>
+
+            <!-- Input Simpan Skor ke PHP -->
+            <div class="mb-4">
+                <input type="text" id="player-name" placeholder="Masukkan Nama Mahasiswa" class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 mb-3">
+                <button onclick="submitScore()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl transition shadow-lg">💾 Simpan ke Database PHP</button>
+            </div>
+
+            <button onclick="resetToMenu()" class="text-sm text-slate-400 hover:text-white underline">Main Lagi / Ganti Level</button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="z-10 w-full text-center py-4 text-xs text-slate-500 border-t border-slate-800">
+        Campus Match 3D &bull; PHP, JS & Tailwind CSS
+    </footer>
+
+    <!-- Script Game & Three.js -->
+    <script>
+        // Data Karakter & Item Kampus
+        const campusCards = [
+            { name: "Mahasiswa Ambis", icon: "📚" },
+            { name: "Jaket Himpunan", icon: "🧥" },
+            { name: "Anak Seni", icon: "🎨" },
+            { name: "Anak Olahraga", icon: "🏀" },
+            { name: "Dosen Penguji", icon: "👨‍🏫" },
+            { name: "Buku Skripsi", icon: "📖" },
+            { name: "Kantin Kampus", icon: "🍜" },
+            { name: "Kopi Senja", icon: "☕" }
+        ];
+
+        let cards = [];
+        let flippedCards = [];
+        let matchedPairs = 0;
+        let moves = 0;
+        let timer = 0;
+        let timerInterval = null;
+        let isLocked = false;
+        let totalPairsNeeded = 8;
+
+        // Inisialisasi Three.js Background 3D Sederhana
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Tambahkan kubus/bentuk 3D melayang di latar belakang
+        const geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const material = new THREE.MeshBasicMaterial({ color: 0x6366f1, wireframe: true });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(0, 0, -5);
+        scene.add(cube);
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            cube.rotation.x += 0.005;
+            cube.rotation.y += 0.005;
+            renderer.render(scene, camera);
+        }
+        animate3D();
+
+        // Fungsi Mulai Game
+        function startGame(totalCards) {
+            totalPairsNeeded = totalCards / 2;
+            matchedPairs = 0;
+            moves = 0;
+            timer = 0;
+            document.getElementById('moves').innerText = moves;
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('game-grid').classList.remove('hidden');
+
+            // Pilih kartu sesuai jumlah level
+            let selected = campusCards.slice(0, totalPairsNeeded);
+            cards = [...selected, ...selected]
+                .sort(() => Math.random() - 0.5)
+                .map((card, index) => ({ id: index, ...card, isFlipped: false, isMatched: false }));
+
+            renderGrid();
+            startTimer();
+        }
+
+        // Render Kartu ke HTML
+        function renderGrid() {
+            const grid = document.getElementById('game-grid');
+            grid.className = `grid gap-4 w-full max-w-2xl ${cards.length === 8 ? 'grid-cols-4' : cards.length === 12 ? 'grid-cols-4' : 'grid-cols-4'}`;
+            grid.innerHTML = '';
+
+            cards.forEach((card, index) => {
+                grid.innerHTML += `
+                    <div class="h-28 perspective-1000 cursor-pointer" onclick="flipCard(${index})">
+                        <div id="card-${index}" class="relative w-full h-full duration-500 transform-style-3d ${card.isFlipped || card.isMatched ? 'rotate-y-180' : ''}">
+                            <!-- Bagian Belakang Kartu -->
+                            <div class="absolute inset-0 bg-slate-800 border-2 border-slate-700 rounded-2xl flex items-center justify-center shadow-lg backface-hidden hover:border-indigo-500 transition">
+                                <span class="text-2xl">🎓</span>
+                            </div>
+                            <!-- Bagian Depan Kartu -->
+                            <div class="absolute inset-0 bg-indigo-900/90 border-2 border-indigo-500 rounded-2xl flex flex-col items-center justify-center shadow-lg backface-hidden rotate-y-180">
+                                <span class="text-3xl mb-1">${card.icon}</span>
+                                <span class="text-[10px] text-indigo-200 text-center px-1 font-semibold">${card.name}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Fungsi Membalik Kartu
+        function flipCard(index) {
+            if (isLocked || cards[index].isFlipped || cards[index].isMatched) return;
+
+            cards[index].isFlipped = true;
+            flippedCards.push({ index, ...cards[index] });
+            renderGrid();
+
+            if (flippedCards.length === 2) {
+                moves++;
+                document.getElementById('moves').innerText = moves;
+                checkMatch();
+            }
+        }
+
+        // Cek Pencocokan Pasangan
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+
+            if (card1.name === card2.name) {
+                cards[card1.index].isMatched = true;
+                cards[card2.index].isMatched = true;
+                matchedPairs++;
+                flippedCards = [];
+
+                if (matchedPairs === totalPairsNeeded) {
+                    clearInterval(timerInterval);
+                    showWinModal();
+                }
+            } else {
+                isLocked = true;
+                setTimeout(() => {
+                    cards[card1.index].isFlipped = false;
+                    cards[card2.index].isFlipped = false;
+                    flippedCards = [];
+                    isLocked = false;
+                    renderGrid();
+                }, 800);
+            }
+        }
+
+        // Pengatur Waktu (Timer)
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timer++;
+                let mins = Math.floor(timer / 60).toString().padStart(2, '0');
+                let secs = (timer % 60).toString().padStart(2, '0');
+                document.getElementById('timer').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        // Tampilkan Modal Menang
+        function showWinModal() {
+            document.getElementById('final-moves').innerText = moves;
+            let mins = Math.floor(timer / 60).toString().padStart(2, '0');
+            let secs = (timer % 60).toString().padStart(2, '0');
+            document.getElementById('final-time').innerText = `${mins}:${secs}`;
+            
+            let finalScore = Math.max(1000 - (moves * 10) - (timer * 5), 100);
+            document.getElementById('final-score').innerText = finalScore;
+
+            document.getElementById('win-modal').classList.remove('hidden');
+        }
+
+        // Kembali ke Menu Utama
+        function resetToMenu() {
+            document.getElementById('win-modal').classList.add('hidden');
+            document.getElementById('game-grid').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+            clearInterval(timerInterval);
+        }
+
+        // Kirim Skor ke Backend PHP (Sesuai panduan sebelumnya)
+        function submitScore() {
+            const playerName = document.getElementById('player-name').value || 'Mahasiswa Anonim';
+            const finalScoreVal = document.getElementById('final-score').innerText;
+
+            const formData = new FormData();
+            formData.append('player_name', playerName);
+            formData.append('score', finalScoreVal);
+            formData.append('moves', moves);
+            formData.append('time_seconds', timer);
+
+            fetch('save_score.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || 'Skor berhasil dikirim ke server!');
+                resetToMenu();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Gagal terhubung ke server PHP (Pastikan file save_score.php & XAMPP aktif).');
+                resetToMenu();
+            });
+        }
+    </script>
+</body>
+</html>
