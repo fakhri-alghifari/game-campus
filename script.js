@@ -5,7 +5,7 @@ function sendScoreToPHP(playerName, score, moves, timeSeconds) {
     formData.append('moves', moves);
     formData.append('time_seconds', timeSeconds);
 
-    fetch('save_score.php', {
+    fetch('/api/save_score.php', {
         method: 'POST',
         body: formData
     })
